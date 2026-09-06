@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path name="repos" path="repos/" />
+    <cache-path name="share_cache" path="drawio_share/" />
+    <files-path name="files_root" path="." />
+</paths>
