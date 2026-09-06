@@ -70,6 +70,37 @@ class BrowseViewModel(
 
     private var needsRefresh: Boolean = false
 
+    private val _syncing = MutableStateFlow(false)
+    val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
+
+    /** 顶部刷新/下拉刷新：拉取远程改动 → 重建索引 → 重载列表，完成后自动结束指示。 */
+    suspend fun syncRefresh(): String? {
+        if (_syncing.value) return null
+        _syncing.value = true
+        _state.update { it.copy(loading = true, error = null) }
+        var message: String? = null
+        try {
+            val repo = withContext(Dispatchers.IO) { repoRepository.getRepo(repoId) }
+            if (repo == null) {
+                message = "仓库不存在或已删除"
+            } else {
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching { repoRepository.pull(repo) }.isSuccess
+                }
+                message = if (ok) {
+                    "已同步到最新"
+                } else {
+                    val stateNow = withContext(Dispatchers.IO) { repoRepository.getRepo(repoId)?.syncState }
+                    if (stateNow == "conflict") "拉取出现冲突，请在“仓库管理”中处理" else "同步失败，请检查网络后重试"
+                }
+            }
+        } finally {
+            _syncing.value = false
+            load(_state.value.currentDir)
+        }
+        return message
+    }
+
     /** 重试推送本地未推送的提交。 */
     fun retryPush() {
         viewModelScope.launch {

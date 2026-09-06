@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -109,29 +110,35 @@ fun BrowseScreen(
     }
     LaunchedEffect(Unit) { vm.refreshIfNeeded() }
 
-    fun createNewFile(folder: String, fileName: String) {
+    fun createNode(folder: String, name: String, isDir: Boolean) {
         if (busyPath != null) return
         busyPath = "new"
         val cleanFolder = folder.trim().replace("\\", "/")
-        val cleanName = fileName.trim()
+        val cleanName = name.trim()
         scope.launch {
             try {
                 val repo = container.repoRepository.getRepo(repoId)
                 if (repo != null) {
-                    val rel = container.repoRepository.createMarkdownFile(repo, cleanFolder, cleanName)
+                    val rel = container.repoRepository.createFileOrFolder(repo, cleanFolder, cleanName, isDir)
                     val synced = container.repoRepository.getRepo(repoId)?.syncState == "idle"
+                    val base = if (isDir) "已创建文件夹" else "已创建"
                     snackbar.showSnackbar(
-                        if (synced) "已创建 $cleanName 并同步到 Git"
-                        else "已创建 $cleanName（本地已提交，推送未完成，可稍后重试同步）",
+                        if (synced) "$base $cleanName 并同步到 Git"
+                        else "$base $cleanName（本地已提交，推送未完成，可稍后重试同步）",
                         duration = SnackbarDuration.Short,
                     )
                     vm.load(state.currentDir)
-                    onOpenNode(FileKind.MD, rel)
+                    if (!isDir) {
+                        val kind = com.xstar.notebook.ui.components.FileTypes.kind(rel.substringAfterLast('/'))
+                        if (kind == FileKind.MD || kind == FileKind.TEXT || kind == FileKind.CODE) {
+                            onOpenNode(kind, rel)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e(
                     "BrowseScreen",
-                    "createNewFile fail repoId=$repoId folder='$cleanFolder' name='$cleanName' currentDir='${state.currentDir}'",
+                    "createNode fail repoId=$repoId folder='$cleanFolder' name='$cleanName' isDir=$isDir currentDir='${state.currentDir}'",
                     e,
                 )
                 snackbar.showSnackbar(e.message?.take(160) ?: "创建失败", duration = SnackbarDuration.Short)
@@ -177,6 +184,28 @@ fun BrowseScreen(
                 title = state.currentDir.substringAfterLast('/').ifEmpty { "根目录" },
                 subtitle = state.pathSegments.size.let { if (it == 0) "全部文件" else "${it + 1} 层 · ${state.files.size} 项" },
                 onMenu = onOpenDrawer,
+                actions = {
+                    val syncingNow by vm.syncing.collectAsState()
+                    Box {
+                        if (syncingNow) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.padding(horizontal = 10.dp).size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White,
+                            )
+                        } else {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    vm.syncRefresh()?.let {
+                                        snackbar.showSnackbar(it, duration = SnackbarDuration.Short)
+                                    }
+                                }
+                            }) {
+                                Icon(Icons.Rounded.Refresh, contentDescription = "同步刷新", tint = Color.White)
+                            }
+                        }
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -190,7 +219,13 @@ fun BrowseScreen(
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = state.loading,
-            onRefresh = { vm.navigate(state.currentDir) },
+            onRefresh = {
+                scope.launch {
+                    vm.syncRefresh()?.let {
+                        snackbar.showSnackbar(it, duration = SnackbarDuration.Short)
+                    }
+                }
+            },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             Column(Modifier.fillMaxSize()) {
@@ -285,9 +320,9 @@ fun BrowseScreen(
             subDirectories = state.files.filter { it.isDirectory }.map { it.name }.sorted(),
             busy = busyPath != null,
             onDismiss = { showNewFile = false },
-            onCreate = { folder, name ->
+            onCreate = { folder, name, isDir ->
                 showNewFile = false
-                createNewFile(folder, name)
+                createNode(folder, name, isDir)
             },
         )
     }
@@ -455,8 +490,9 @@ private fun NewFileDialog(
     subDirectories: List<String>,
     busy: Boolean,
     onDismiss: () -> Unit,
-    onCreate: (String, String) -> Unit,
+    onCreate: (String, String, Boolean) -> Unit,
 ) {
+    var isDir by remember { mutableStateOf(false) }
     var folder by remember { mutableStateOf(defaultFolder) }
     var name by remember { mutableStateOf("") }
 
@@ -478,20 +514,31 @@ private fun NewFileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("新建 Markdown 文件", fontWeight = FontWeight.Bold) },
+        title = { Text(if (isDir) "新建文件夹" else "新建文件", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TypeChoice(label = "文件", selected = !isDir) { isDir = false }
+                    TypeChoice(label = "文件夹", selected = isDir) { isDir = true }
+                }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("文件名") },
-                    placeholder = { Text("new.md") },
+                    label = { Text(if (isDir) "文件夹名称" else "文件名") },
+                    placeholder = { Text(if (isDir) "新建文件夹" else "new") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium,
                 )
+                if (!isDir && name.isNotBlank() && !name.contains('.')) {
+                    Text(
+                        "未填写扩展名，将创建为 Markdown 文件（${name.trim()}.md）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Text(
-                    "存放目录（点击选择）",
+                    "创建位置（点击选择）",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -548,7 +595,7 @@ private fun NewFileDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onCreate(folder, name) },
+                onClick = { onCreate(folder, name.trim(), isDir) },
                 enabled = name.isNotBlank() &&
                     !name.contains('/') && !name.contains('\\') && !busy,
             ) {
@@ -560,6 +607,23 @@ private fun NewFileDialog(
         },
         shape = MaterialTheme.shapes.large,
     )
+}
+
+@Composable
+private fun TypeChoice(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+        )
+    }
 }
 
 @Composable

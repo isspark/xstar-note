@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+**/build/
+captures/
+
+# Local configuration files (SDK paths etc.)
+local.properties
+
+# IDE - IntelliJ / Android Studio
+.idea/
+*.iml
+.DS_Store
+*.hprof
+
+# Kotlin
+.kotlin/
+
+# Editor tooling (Trae / others)
+.trae/
+
+# Misc
+*.log

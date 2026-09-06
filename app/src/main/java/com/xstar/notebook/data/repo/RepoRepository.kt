@@ -360,6 +360,45 @@ class RepoRepository(
             rel
         }
 
+    /**
+     * 新建文件或目录（文件无扩展名时默认 .md），并提交改动。
+     * 返回新节点的仓库内相对路径；目录会放一个 .gitkeep 以便被 git 跟踪。
+     */
+    suspend fun createFileOrFolder(
+        repo: RepoEntity,
+        relFolder: String,
+        rawName: String,
+        isDirectory: Boolean,
+    ): String = withContext(Dispatchers.IO) {
+        if (rawName.isBlank() || rawName.contains('/') || rawName.contains('\\')) {
+            throw IllegalArgumentException("名称不能为空或包含 / 或 \\")
+        }
+        val folder = relFolder.trim().replace("\\", "/").replace("../", "").trim('/')
+        var name = rawName.trim()
+        if (!isDirectory && !name.contains('.')) name += ".md"
+        val rel = if (folder.isBlank()) name else "$folder/$name"
+        lockFor(repo.id).withLock {
+            if (isDirectory) {
+                val dir = File(git.localDirFor(repo.id), rel)
+                if (dir.exists()) throw IllegalArgumentException("已存在同名文件或文件夹")
+                FileUtils.mkdirs(dir, true)
+                File(dir, ".gitkeep").writeText("", Charsets.UTF_8)
+                commitAllAndPush(repo, "create folder: $rel/")
+                indexDocs(repo.id)
+            } else {
+                val target = File(git.localDirFor(repo.id), rel)
+                if (target.exists()) throw IllegalArgumentException("该文件已存在")
+                val isMd = name.lowercase().endsWith(".md") || name.lowercase().endsWith(".markdown")
+                val content = if (isMd) "# ${name.removeSuffix(".md").removeSuffix(".markdown").trim().ifBlank { "Untitled" }}\n\n" else ""
+                git.writeFileText(repo.id, rel, content)
+                commitAllAndPush(repo, "create: $rel")
+                indexTodos(repo.id, rel, content)
+                upsertDocRow(repo.id, rel)
+            }
+            rel
+        }
+    }
+
     /** 勾选/取消勾选某个 TODO：改写原 md 行 → 提交 → 推送。 */
     suspend fun toggleTodo(repo: RepoEntity, todo: TodoEntity, newChecked: Boolean, pushAfter: Boolean = true) =
         withContext(Dispatchers.IO) {
