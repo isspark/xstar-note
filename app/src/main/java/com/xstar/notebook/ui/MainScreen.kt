@@ -21,9 +21,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,15 +65,18 @@ import com.xstar.notebook.ui.browse.BrowseScreen
 import com.xstar.notebook.ui.components.BrandTitleLine
 import com.xstar.notebook.ui.components.FileKind
 import com.xstar.notebook.ui.components.FileTypes
-import com.xstar.notebook.ui.components.HostAvatar
 import com.xstar.notebook.ui.drawioView.DrawioScreen
+import com.xstar.notebook.ui.home.HomePagerScreen
 import com.xstar.notebook.ui.mdView.MdViewScreen
 import com.xstar.notebook.ui.navigation.Routes
 import com.xstar.notebook.ui.repoList.RepoListScreen
 import com.xstar.notebook.ui.settings.SettingsScreen
 import com.xstar.notebook.ui.theme.BrandGradient
+import com.xstar.notebook.ui.todoHub.TodoClassifyScreen
+import com.xstar.notebook.ui.todoHub.TodoEditorScreen
 import com.xstar.notebook.ui.todoHub.TodoHubScreen
 import com.xstar.notebook.ui.todoList.TodoListScreen
+import com.xstar.notebook.data.settings.HomeMode
 import kotlinx.coroutines.launch
 
 @Composable
@@ -84,6 +88,7 @@ fun MainScreen() {
     val repos by remember { container.repoRepository.observeRepos() }
         .collectAsState(initial = emptyList())
     val defaultRepoId by container.settings.defaultRepoId.collectAsState()
+    val homeMode by container.settings.homeMode.collectAsState()
 
     val defaultRepo = repos.find { it.id == defaultRepoId }
     var redirected by remember { mutableStateOf(false) }
@@ -124,12 +129,51 @@ fun MainScreen() {
         }
     }
 
-    LaunchedEffect(repos.isNotEmpty()) {
-        if (!redirected && repos.isNotEmpty()) {
-            redirected = true
-            repos.find { it.id == defaultRepoId }?.let {
-                nav.navigate(Routes.browse(it.id)) {
-                    popUpTo(Routes.REPOS) { inclusive = false }
+    fun configuredHomeRoute(): String = when (homeMode) {
+        HomeMode.TODO -> Routes.TODO_HUB
+        HomeMode.REPOSITORY -> defaultRepo?.let { Routes.browse(it.id) } ?: Routes.REPOS
+        HomeMode.BOTH -> defaultRepo?.let { Routes.homeBoth(it.id, todoFirst = false) } ?: Routes.REPOS
+        HomeMode.TODO_AND_REPOSITORY -> defaultRepo?.let {
+            Routes.homeBoth(it.id, todoFirst = true)
+        } ?: Routes.REPOS
+    }
+
+    fun openConfiguredHome() {
+        val route = configuredHomeRoute()
+        if (!nav.popBackStack(route, inclusive = false)) {
+            nav.navigate(route) {
+                popUpTo(Routes.REPOS) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    LaunchedEffect(repos, homeMode) {
+        if (redirected) return@LaunchedEffect
+        when (homeMode) {
+            HomeMode.TODO -> {
+                redirected = true
+                nav.navigate(Routes.TODO_HUB) {
+                    popUpTo(Routes.REPOS) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+            HomeMode.REPOSITORY -> repos.find { it.id == defaultRepoId }?.let { repo ->
+                redirected = true
+                nav.navigate(Routes.browse(repo.id)) {
+                    popUpTo(Routes.REPOS) { inclusive = true }
+                }
+            }
+            HomeMode.BOTH -> repos.find { it.id == defaultRepoId }?.let { repo ->
+                redirected = true
+                nav.navigate(Routes.homeBoth(repo.id, todoFirst = false)) {
+                    popUpTo(Routes.REPOS) { inclusive = true }
+                }
+            }
+            HomeMode.TODO_AND_REPOSITORY -> repos.find { it.id == defaultRepoId }?.let { repo ->
+                redirected = true
+                nav.navigate(Routes.homeBoth(repo.id, todoFirst = true)) {
+                    popUpTo(Routes.REPOS) { inclusive = true }
                 }
             }
         }
@@ -139,20 +183,15 @@ fun MainScreen() {
         drawerState = drawerState,
         drawerContent = {
             AppDrawerContent(
-                defaultRepo = defaultRepo,
-                onOpenDefault = {
+                homeSubtitle = when (homeMode) {
+                    HomeMode.REPOSITORY -> defaultRepo?.displayName ?: "选择默认仓库"
+                    HomeMode.TODO -> "TODO"
+                    HomeMode.BOTH -> "${defaultRepo?.displayName ?: "仓库"} + TODO"
+                    HomeMode.TODO_AND_REPOSITORY -> "TODO + ${defaultRepo?.displayName ?: "仓库"}"
+                },
+                onOpenHome = {
                     closeDrawer()
-                    if (defaultRepo != null) {
-                        redirected = true
-                        nav.navigate(Routes.browse(defaultRepo.id)) {
-                            popUpTo(Routes.REPOS) { inclusive = false }
-                        }
-                    } else {
-                        nav.navigate(Routes.REPOS) {
-                            popUpTo(Routes.REPOS) { inclusive = false }
-                            launchSingleTop = true
-                        }
-                    }
+                    openConfiguredHome()
                 },
                 onManage = {
                     closeDrawer()
@@ -227,6 +266,26 @@ fun MainScreen() {
                 )
             }
             composable(
+                Routes.HOME_BOTH,
+                arguments = listOf(
+                    navArgument("repoId") { type = NavType.LongType },
+                    navArgument("todoFirst") { type = NavType.IntType },
+                ),
+            ) { entry ->
+                val repoId = entry.arguments?.getLong("repoId") ?: return@composable
+                val todoFirst = entry.arguments?.getInt("todoFirst") == 1
+                HomePagerScreen(
+                    repoId = repoId,
+                    todoFirst = todoFirst,
+                    drawerOpen = drawerState.isOpen,
+                    onOpenDrawer = ::openDrawer,
+                    onOpenNode = { kind, relPath -> openDocByKind(repoId, relPath, kind) },
+                    onOpenClassify = { nav.navigate(Routes.TODO_CLASSIFY) },
+                    onCreateTodo = { nav.navigate(Routes.todoEditor()) },
+                    onEditTodo = { id -> nav.navigate(Routes.todoEditor(id)) },
+                )
+            }
+            composable(
                 Routes.MD_VIEW,
                 arguments = listOf(
                     navArgument("repoId") { type = NavType.LongType },
@@ -295,7 +354,26 @@ fun MainScreen() {
                 )
             }
             composable(Routes.TODO_HUB) {
-                TodoHubScreen(onOpenDrawer = ::openDrawer)
+                TodoHubScreen(
+                    onOpenDrawer = ::openDrawer,
+                    onOpenClassify = { nav.navigate(Routes.TODO_CLASSIFY) },
+                    onCreateTodo = { nav.navigate(Routes.todoEditor()) },
+                    onEditTodo = { id -> nav.navigate(Routes.todoEditor(id)) },
+                )
+            }
+            composable(Routes.TODO_CLASSIFY) {
+                TodoClassifyScreen(onBack = { nav.popBackStack() })
+            }
+            composable(
+                Routes.TODO_EDITOR,
+                arguments = listOf(navArgument("todoId") { type = NavType.LongType }),
+            ) { entry ->
+                val todoId = entry.arguments?.getLong("todoId") ?: 0L
+                TodoEditorScreen(
+                    todoId = todoId,
+                    onBack = { nav.popBackStack() },
+                    onSaved = { nav.popBackStack() },
+                )
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(onOpenDrawer = ::openDrawer)
@@ -351,8 +429,8 @@ fun MainScreen() {
 
 @Composable
 private fun AppDrawerContent(
-    defaultRepo: RepoEntity?,
-    onOpenDefault: () -> Unit,
+    homeSubtitle: String,
+    onOpenHome: () -> Unit,
     onManage: () -> Unit,
     onTodoHub: () -> Unit,
     onSearch: () -> Unit,
@@ -387,13 +465,11 @@ private fun AppDrawerContent(
             }
 
             Column(Modifier.padding(top = 8.dp)) {
-                if (defaultRepo != null) {
-                    DefaultRepoRow(repo = defaultRepo, onClick = onOpenDefault)
-                    HorizontalDivider(
-                        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                    )
-                }
+                HomeDocumentRow(subtitle = homeSubtitle, onClick = onOpenHome)
+                HorizontalDivider(
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
                 NavItem(
                     icon = Icons.Rounded.Bookmarks,
                     label = "仓库管理",
@@ -401,7 +477,7 @@ private fun AppDrawerContent(
                 )
                 NavItem(
                     icon = Icons.Rounded.Checklist,
-                    label = "TODO 清单",
+                    label = "TODO",
                     onClick = onTodoHub,
                 )
                 NavItem(
@@ -411,7 +487,7 @@ private fun AppDrawerContent(
                 )
                 NavItem(
                     icon = Icons.Rounded.Palette,
-                    label = "主题设置",
+                    label = "设置",
                     onClick = onSettings,
                 )
             }
@@ -428,7 +504,7 @@ private fun AppDrawerContent(
 }
 
 @Composable
-private fun DefaultRepoRow(repo: RepoEntity, onClick: () -> Unit) {
+private fun HomeDocumentRow(subtitle: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -436,15 +512,27 @@ private fun DefaultRepoRow(repo: RepoEntity, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HostAvatar(hostType = repo.hostType, size = 38.dp)
+        Box(
+            Modifier.size(38.dp).background(
+                MaterialTheme.colorScheme.primaryContainer,
+                MaterialTheme.shapes.medium,
+            ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Rounded.Home,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(
-                "当前默认仓库",
+                "首页文档",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
             )
             Text(
-                repo.displayName,
+                subtitle,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -452,9 +540,9 @@ private fun DefaultRepoRow(repo: RepoEntity, onClick: () -> Unit) {
             )
         }
         Icon(
-            Icons.Rounded.Star,
-            contentDescription = null,
-            tint = Color(0xFFFFB300),
+            Icons.Rounded.ChevronRight,
+            contentDescription = "进入首页",
+            tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )
     }

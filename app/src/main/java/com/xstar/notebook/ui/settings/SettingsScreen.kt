@@ -9,11 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -30,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xstar.notebook.data.settings.ThemeMode
+import com.xstar.notebook.data.settings.HomeMode
 import com.xstar.notebook.ui.appContainer
 import com.xstar.notebook.ui.components.GradientTopBar
 
@@ -38,20 +44,59 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
     val settings = appContainer().settings
     val themeMode by settings.themeMode.collectAsState()
     val dynamicColor by settings.dynamicColor.collectAsState()
+    val homeMode by settings.homeMode.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            GradientTopBar(title = "主题设置", subtitle = "选择界面明暗与配色", onMenu = onOpenDrawer)
+            GradientTopBar(title = "设置", subtitle = "首页、界面明暗与配色", onMenu = onOpenDrawer)
         },
     ) { padding ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Text(
+                "首页",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            ThemeOption(
+                icon = Icons.Rounded.Folder,
+                title = "默认仓库",
+                hint = "启动后打开默认仓库目录",
+                selected = homeMode == HomeMode.REPOSITORY,
+                onClick = { settings.setHomeMode(HomeMode.REPOSITORY) },
+            )
+            ThemeOption(
+                icon = Icons.Rounded.Checklist,
+                title = "TODO",
+                hint = "启动后直接打开 TODO 首页",
+                selected = homeMode == HomeMode.TODO,
+                onClick = { settings.setHomeMode(HomeMode.TODO) },
+            )
+            ThemeOption(
+                icon = Icons.Rounded.ViewCarousel,
+                title = "仓库 + TODO",
+                hint = "默认仓库在前，左划切换到 TODO",
+                selected = homeMode == HomeMode.BOTH,
+                onClick = { settings.setHomeMode(HomeMode.BOTH) },
+            )
+            ThemeOption(
+                icon = Icons.Rounded.ViewCarousel,
+                title = "TODO + 仓库",
+                hint = "TODO 在前，左划切换到默认仓库",
+                selected = homeMode == HomeMode.TODO_AND_REPOSITORY,
+                onClick = { settings.setHomeMode(HomeMode.TODO_AND_REPOSITORY) },
+            )
+
+            Spacer(Modifier.height(8.dp))
             Text(
                 "外观模式",
                 style = MaterialTheme.typography.titleSmall,
