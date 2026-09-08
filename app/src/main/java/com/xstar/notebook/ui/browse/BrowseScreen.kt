@@ -158,7 +158,7 @@ fun BrowseScreen(
                 if (repo != null) {
                     val pushed = block(repo, rel)
                     snackbar.showSnackbar(
-                        if (pushed) "已修改并同步到 Git" else "已修改并提交（未能推送，可在仓库管理同步）",
+                        if (pushed) "已修改并同步到 Git" else "已修改并提交（未能推送，可在笔记管理同步）",
                         duration = SnackbarDuration.Short,
                     )
                 }

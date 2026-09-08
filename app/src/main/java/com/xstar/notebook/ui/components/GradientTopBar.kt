@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -27,7 +27,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
-import com.xstar.notebook.ui.theme.BrandGradient
+import com.xstar.notebook.ui.theme.appGradientColors
+
+val AppTopBarContentHeight = 56.dp
 
 /** 渐变顶栏，标题与描述并排成一行，仅用字号/字重/透明度区分。 */
 @Composable
@@ -66,17 +68,18 @@ fun GradientTopBar(
     onMenu: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    val gradient = appGradientColors()
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Brush.linearGradient(BrandGradient)),
+            .background(Brush.linearGradient(gradient)),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = 52.dp)
                 .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+                .height(AppTopBarContentHeight)
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             when {

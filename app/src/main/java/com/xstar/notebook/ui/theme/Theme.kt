@@ -11,7 +11,10 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
@@ -20,6 +23,11 @@ val BrandGradient = listOf(
     Color(0xFFB23AE8),
     Color(0xFFF0518E),
 )
+
+val LocalAppGradient = staticCompositionLocalOf { BrandGradient }
+
+@Composable
+fun appGradientColors(): List<Color> = LocalAppGradient.current
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF6B4CE0),
@@ -101,11 +109,27 @@ fun XstarTheme(
         darkTheme -> DarkColors
         else -> LightColors
     }
+    val gradient = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val primary = if (darkTheme) colorScheme.primaryContainer else colorScheme.primary
+            val secondary = if (darkTheme) colorScheme.secondaryContainer else colorScheme.secondary
+            val tertiary = if (darkTheme) colorScheme.tertiaryContainer else colorScheme.tertiary
+            listOf(
+                primary,
+                lerp(primary, secondary, 0.48f),
+                lerp(primary, tertiary, 0.62f),
+            )
+        }
+        darkTheme -> BrandGradient.map { lerp(it, colorScheme.background, 0.26f) }
+        else -> BrandGradient
+    }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = XstarTypography,
-        shapes = XstarShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalAppGradient provides gradient) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = XstarTypography,
+            shapes = XstarShapes,
+            content = content,
+        )
+    }
 }

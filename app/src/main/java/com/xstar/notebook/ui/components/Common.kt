@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xstar.notebook.ui.theme.BrandGradient
+import com.xstar.notebook.ui.theme.appGradientColors
 
 /** 统一的实心主按钮：全主题色、大圆角、统一高度。 */
 @Composable
@@ -106,6 +106,7 @@ fun EmptyState(
     hint: String,
     modifier: Modifier = Modifier,
 ) {
+    val gradient = appGradientColors()
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -115,7 +116,7 @@ fun EmptyState(
             Modifier
                 .size(96.dp)
                 .background(
-                    brush = Brush.linearGradient(BrandGradient),
+                    brush = Brush.linearGradient(gradient),
                     shape = CircleShape,
                 ),
             contentAlignment = Alignment.Center,

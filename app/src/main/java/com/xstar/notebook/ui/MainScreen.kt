@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,7 +33,6 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -51,47 +50,44 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.xstar.notebook.data.db.entity.RepoEntity
 import com.xstar.notebook.ui.addRepo.AddRepoScreen
 import com.xstar.notebook.ui.browse.BrowseScreen
 import com.xstar.notebook.ui.components.BrandTitleLine
+import com.xstar.notebook.ui.components.AppTopBarContentHeight
 import com.xstar.notebook.ui.components.FileKind
 import com.xstar.notebook.ui.components.FileTypes
 import com.xstar.notebook.ui.drawioView.DrawioScreen
-import com.xstar.notebook.ui.home.HomePagerScreen
+import com.xstar.notebook.ui.workspace.WorkspaceScreen
 import com.xstar.notebook.ui.mdView.MdViewScreen
 import com.xstar.notebook.ui.navigation.Routes
 import com.xstar.notebook.ui.repoList.RepoListScreen
 import com.xstar.notebook.ui.settings.SettingsScreen
-import com.xstar.notebook.ui.theme.BrandGradient
+import com.xstar.notebook.ui.theme.appGradientColors
 import com.xstar.notebook.ui.todoHub.TodoClassifyScreen
 import com.xstar.notebook.ui.todoHub.TodoEditorScreen
 import com.xstar.notebook.ui.todoHub.TodoHubScreen
 import com.xstar.notebook.ui.todoList.TodoListScreen
-import com.xstar.notebook.data.settings.HomeMode
 import kotlinx.coroutines.launch
 
 @Composable
-fun MainScreen() {
+fun MainScreen(createTodoSignal: Long = 0L) {
     val container = appContainer()
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val repos by remember { container.repoRepository.observeRepos() }
-        .collectAsState(initial = emptyList())
     val defaultRepoId by container.settings.defaultRepoId.collectAsState()
-    val homeMode by container.settings.homeMode.collectAsState()
 
-    val defaultRepo = repos.find { it.id == defaultRepoId }
     var redirected by remember { mutableStateOf(false) }
+
+    LaunchedEffect(createTodoSignal) {
+        if (createTodoSignal > 0L) nav.navigate(Routes.todoEditor())
+    }
 
     fun openDrawer() {
         scope.launch { drawerState.open() }
@@ -129,17 +125,8 @@ fun MainScreen() {
         }
     }
 
-    fun configuredHomeRoute(): String = when (homeMode) {
-        HomeMode.TODO -> Routes.TODO_HUB
-        HomeMode.REPOSITORY -> defaultRepo?.let { Routes.browse(it.id) } ?: Routes.REPOS
-        HomeMode.BOTH -> defaultRepo?.let { Routes.homeBoth(it.id, todoFirst = false) } ?: Routes.REPOS
-        HomeMode.TODO_AND_REPOSITORY -> defaultRepo?.let {
-            Routes.homeBoth(it.id, todoFirst = true)
-        } ?: Routes.REPOS
-    }
-
     fun openConfiguredHome() {
-        val route = configuredHomeRoute()
+        val route = Routes.WORKSPACE
         if (!nav.popBackStack(route, inclusive = false)) {
             nav.navigate(route) {
                 popUpTo(Routes.REPOS) { inclusive = true }
@@ -148,47 +135,10 @@ fun MainScreen() {
         }
     }
 
-    LaunchedEffect(repos, homeMode) {
-        if (redirected) return@LaunchedEffect
-        when (homeMode) {
-            HomeMode.TODO -> {
-                redirected = true
-                nav.navigate(Routes.TODO_HUB) {
-                    popUpTo(Routes.REPOS) { inclusive = true }
-                    launchSingleTop = true
-                }
-            }
-            HomeMode.REPOSITORY -> repos.find { it.id == defaultRepoId }?.let { repo ->
-                redirected = true
-                nav.navigate(Routes.browse(repo.id)) {
-                    popUpTo(Routes.REPOS) { inclusive = true }
-                }
-            }
-            HomeMode.BOTH -> repos.find { it.id == defaultRepoId }?.let { repo ->
-                redirected = true
-                nav.navigate(Routes.homeBoth(repo.id, todoFirst = false)) {
-                    popUpTo(Routes.REPOS) { inclusive = true }
-                }
-            }
-            HomeMode.TODO_AND_REPOSITORY -> repos.find { it.id == defaultRepoId }?.let { repo ->
-                redirected = true
-                nav.navigate(Routes.homeBoth(repo.id, todoFirst = true)) {
-                    popUpTo(Routes.REPOS) { inclusive = true }
-                }
-            }
-        }
-    }
-
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             AppDrawerContent(
-                homeSubtitle = when (homeMode) {
-                    HomeMode.REPOSITORY -> defaultRepo?.displayName ?: "选择默认仓库"
-                    HomeMode.TODO -> "TODO"
-                    HomeMode.BOTH -> "${defaultRepo?.displayName ?: "仓库"} + TODO"
-                    HomeMode.TODO_AND_REPOSITORY -> "TODO + ${defaultRepo?.displayName ?: "仓库"}"
-                },
                 onOpenHome = {
                     closeDrawer()
                     openConfiguredHome()
@@ -207,10 +157,6 @@ fun MainScreen() {
                         launchSingleTop = true
                     }
                 },
-                onSearch = {
-                    closeDrawer()
-                    openSearch()
-                },
                 onSettings = {
                     closeDrawer()
                     nav.navigate(Routes.SETTINGS) {
@@ -221,7 +167,22 @@ fun MainScreen() {
             )
         },
     ) {
-        NavHost(navController = nav, startDestination = Routes.REPOS) {
+        NavHost(navController = nav, startDestination = Routes.WORKSPACE) {
+            composable(Routes.WORKSPACE) {
+                WorkspaceScreen(
+                    onOpenDrawer = ::openDrawer,
+                    onOpenTodoHub = { nav.navigate(Routes.TODO_HUB) },
+                    onOpenSearch = ::openSearch,
+                    onCreateTodo = { nav.navigate(Routes.todoEditor()) },
+                    onOpenNote = { repoId, relPath -> nav.navigate(Routes.mdView(repoId, relPath)) },
+                    onOpenRepos = {
+                        nav.navigate(Routes.REPOS) {
+                            popUpTo(Routes.REPOS) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
             composable(Routes.REPOS) {
                 RepoListScreen(
                     onAddRepo = { nav.navigate(Routes.ADD_REPO) },
@@ -263,26 +224,6 @@ fun MainScreen() {
                             else -> Unit
                         }
                     },
-                )
-            }
-            composable(
-                Routes.HOME_BOTH,
-                arguments = listOf(
-                    navArgument("repoId") { type = NavType.LongType },
-                    navArgument("todoFirst") { type = NavType.IntType },
-                ),
-            ) { entry ->
-                val repoId = entry.arguments?.getLong("repoId") ?: return@composable
-                val todoFirst = entry.arguments?.getInt("todoFirst") == 1
-                HomePagerScreen(
-                    repoId = repoId,
-                    todoFirst = todoFirst,
-                    drawerOpen = drawerState.isOpen,
-                    onOpenDrawer = ::openDrawer,
-                    onOpenNode = { kind, relPath -> openDocByKind(repoId, relPath, kind) },
-                    onOpenClassify = { nav.navigate(Routes.TODO_CLASSIFY) },
-                    onCreateTodo = { nav.navigate(Routes.todoEditor()) },
-                    onEditTodo = { id -> nav.navigate(Routes.todoEditor(id)) },
                 )
             }
             composable(
@@ -429,14 +370,13 @@ fun MainScreen() {
 
 @Composable
 private fun AppDrawerContent(
-    homeSubtitle: String,
     onOpenHome: () -> Unit,
     onManage: () -> Unit,
     onTodoHub: () -> Unit,
-    onSearch: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val config = LocalConfiguration.current
+    val gradient = appGradientColors()
     val drawerWidth = ((config.screenWidthDp * 2f / 3f).toInt()).coerceAtLeast(240).coerceAtMost(420).dp
     ModalDrawerSheet(
         modifier = Modifier.fillMaxHeight().width(drawerWidth),
@@ -446,14 +386,14 @@ private fun AppDrawerContent(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .background(Brush.linearGradient(BrandGradient)),
+                    .background(Brush.linearGradient(gradient)),
             ) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 52.dp)
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                        .height(AppTopBarContentHeight)
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     BrandTitleLine(
@@ -465,25 +405,20 @@ private fun AppDrawerContent(
             }
 
             Column(Modifier.padding(top = 8.dp)) {
-                HomeDocumentRow(subtitle = homeSubtitle, onClick = onOpenHome)
+                HomeDocumentRow(onClick = onOpenHome)
                 HorizontalDivider(
                     Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     color = MaterialTheme.colorScheme.outlineVariant,
                 )
                 NavItem(
                     icon = Icons.Rounded.Bookmarks,
-                    label = "仓库管理",
+                    label = "笔记管理",
                     onClick = onManage,
                 )
                 NavItem(
                     icon = Icons.Rounded.Checklist,
                     label = "TODO",
                     onClick = onTodoHub,
-                )
-                NavItem(
-                    icon = Icons.Rounded.Search,
-                    label = "搜索笔记",
-                    onClick = onSearch,
                 )
                 NavItem(
                     icon = Icons.Rounded.Palette,
@@ -504,7 +439,7 @@ private fun AppDrawerContent(
 }
 
 @Composable
-private fun HomeDocumentRow(subtitle: String, onClick: () -> Unit) {
+private fun HomeDocumentRow(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -525,23 +460,15 @@ private fun HomeDocumentRow(subtitle: String, onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                "首页文档",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            "工作台",
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+        )
         Icon(
             Icons.Rounded.ChevronRight,
-            contentDescription = "进入首页",
+            contentDescription = "进入工作台",
             tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )

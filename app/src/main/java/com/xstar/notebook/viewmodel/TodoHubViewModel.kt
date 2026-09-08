@@ -3,6 +3,7 @@ package com.xstar.notebook.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xstar.notebook.data.db.entity.CategorySystemEntity
+import com.xstar.notebook.data.db.entity.DocEntity
 import com.xstar.notebook.data.db.entity.RepoEntity
 import com.xstar.notebook.data.db.entity.TodoNodeEntity
 import com.xstar.notebook.data.repo.RepoRepository
@@ -27,6 +28,7 @@ data class TodoHubUiState(
     val repos: List<RepoEntity> = emptyList(),
     val selectedRepoId: Long? = null,
     val repoFiles: List<String> = emptyList(),
+    val recentDocs: List<DocEntity> = emptyList(),
     val viewMode: TodoViewMode = TodoViewMode.CATEGORY,
     val doneFilter: TodoDoneFilter = TodoDoneFilter.OPEN,
     val selectedSystemId: Long? = null,
@@ -53,11 +55,14 @@ class TodoHubViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, TodoHubData())
     private val reposFlow = repoRepository.observeRepos()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val recentDocsFlow = repoRepository.observeRecentDocs()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
         viewModelScope.launch {
-            combine(dataFlow, reposFlow) { data, repos -> data to repos }
-                .collect { (data, repos) ->
+            combine(dataFlow, reposFlow, recentDocsFlow) { data, repos, recentDocs ->
+                Triple(data, repos, recentDocs)
+            }.collect { (data, repos, recentDocs) ->
                     _state.update { current ->
                         val systemId = current.selectedSystemId
                             ?.takeIf { id -> data.systems.any { it.id == id && it.enabled } }
@@ -67,6 +72,7 @@ class TodoHubViewModel(
                         current.copy(
                             data = data,
                             repos = repos,
+                            recentDocs = recentDocs,
                             selectedRepoId = current.selectedRepoId
                                 ?.takeIf { id -> repos.any { it.id == id } }
                                 ?: repos.firstOrNull()?.id,
@@ -112,6 +118,25 @@ class TodoHubViewModel(
                 if (tags.isNotEmpty()) todoHubRepository.setTags(id, tags)
             }.onFailure { error ->
                 _state.update { it.copy(message = "保存失败：" + friendly(error)) }
+            }
+        }
+    }
+
+    fun createMarkdownNote(repoId: Long, rawName: String, onCreated: (Long, String) -> Unit) {
+        if (_state.value.busy || rawName.isBlank()) return
+        _state.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            runCatching {
+                val repo = repoRepository.getRepo(repoId) ?: error("仓库不存在或已删除")
+                val name = rawName.trim().let {
+                    if (it.endsWith(".md", ignoreCase = true) || it.endsWith(".markdown", ignoreCase = true)) it else "$it.md"
+                }
+                repoRepository.createMarkdownFile(repo, "", name)
+            }.onSuccess { relPath ->
+                _state.update { it.copy(busy = false) }
+                onCreated(repoId, relPath)
+            }.onFailure { error ->
+                _state.update { it.copy(busy = false, message = "新建笔记失败：" + friendly(error)) }
             }
         }
     }

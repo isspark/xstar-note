@@ -5,9 +5,13 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.xstar.notebook.data.db.entity.DocEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DocDao {
+    @Query("SELECT * FROM docs WHERE fileType = 'md' ORDER BY modifiedAt DESC LIMIT :limit")
+    fun observeRecentMarkdown(limit: Int): Flow<List<DocEntity>>
+
     @Query("SELECT * FROM docs WHERE repoId = :repoId AND relPath = :relPath LIMIT 1")
     suspend fun getByPath(repoId: Long, relPath: String): DocEntity?
 

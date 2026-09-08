@@ -38,6 +38,9 @@ class RepoRepository(
 
     fun observeRepos(): Flow<List<RepoEntity>> = repoDao.observeAll()
 
+    fun observeRecentDocs(limit: Int = 8): Flow<List<DocEntity>> =
+        docDao.observeRecentMarkdown(limit)
+
     suspend fun reposOnce(): List<RepoEntity> = repoDao.getAllOnce()
 
     fun observeRepo(id: Long): Flow<RepoEntity?> = repoDao.observeById(id)

@@ -95,7 +95,7 @@ fun RepoListScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             GradientTopBar(
-                title = "仓库管理",
+                title = "笔记管理",
                 subtitle = if (repos.isEmpty()) "添加一个 Git 仓库开始" else "${repos.size} 个仓库 · 点星标设为默认",
                 onMenu = onOpenDrawer,
                 actions = {

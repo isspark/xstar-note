@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XStar 笔记 · 工作台重设计原型</title>
+  <style>
+    :root {
+      --ink: #25212b;
+      --muted: #746d7c;
+      --canvas: #f8f5fa;
+      --surface: #fffdfd;
+      --line: #ebe4ef;
+      --purple: #6b4ce0;
+      --purple-soft: #e7dfff;
+      --purple-ink: #21066b;
+      --green: #008c76;
+      --green-soft: #9ff2e0;
+      --red: #ba1a1a;
+      --shadow: 0 14px 36px rgba(67, 43, 91, .13);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: #e9e4ed;
+      font: 14px/1.5 Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    button { font: inherit; cursor: pointer; }
+    .stage { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+    .phone {
+      position: relative;
+      width: min(100%, 420px);
+      height: min(880px, calc(100vh - 64px));
+      min-height: 680px;
+      overflow: hidden;
+      border: 8px solid #211d26;
+      border-radius: 38px;
+      background: var(--canvas);
+      box-shadow: 0 30px 80px rgba(41, 31, 47, .28);
+    }
+    .screen { height: 100%; overflow-y: auto; scrollbar-width: none; padding-bottom: 88px; }
+    .screen::-webkit-scrollbar { display: none; }
+    .status {
+      height: 29px;
+      padding: 7px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      color: #fff;
+      background: linear-gradient(110deg, #7048f0, #b23ae8 55%, #f0518e);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .topbar {
+      padding: 8px 13px 13px 20px;
+      display: flex;
+      align-items: center;
+      color: #fff;
+      background: linear-gradient(110deg, #7048f0, #b23ae8 55%, #f0518e);
+    }
+    .topbar h1 { margin: 0; font-size: 21px; line-height: 1.25; }
+    .topbar p { margin: 2px 0 0; color: rgba(255,255,255,.75); font-size: 12px; }
+    .top-actions { margin-left: auto; display: flex; gap: 3px; }
+    .icon-button { width: 42px; height: 42px; border: 0; border-radius: 50%; color: inherit; background: transparent; font-size: 19px; }
+    .icon-button:hover { background: rgba(255,255,255,.14); }
+    main { padding: 18px 16px 4px; }
+    .focus {
+      padding: 20px;
+      border-radius: 24px;
+      color: var(--purple-ink);
+      background: var(--purple-soft);
+    }
+    .date-line { display: flex; align-items: center; color: rgba(33, 6, 107, .68); font-size: 12px; font-weight: 700; }
+    .date-icon { width: 38px; height: 38px; margin-right: 10px; display: grid; place-items: center; border-radius: 50%; color: var(--purple); background: rgba(107,76,224,.12); font-size: 17px; }
+    .date-line time { margin-left: auto; }
+    .focus h2 { margin: 17px 0 0; font-size: 23px; line-height: 1.28; letter-spacing: -.025em; }
+    .focus p { margin: 6px 0 0; color: rgba(33, 6, 107, .67); }
+    .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .primary, .secondary { padding: 10px 12px; border-radius: 14px; font-weight: 800; }
+    .primary { border: 0; color: #fff; background: var(--purple); box-shadow: 0 8px 18px rgba(107,76,224,.24); }
+    .secondary { border: 0; color: var(--purple); background: #fff; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    .card { border: 1px solid var(--line); background: var(--surface); box-shadow: 0 2px 8px rgba(62, 43, 72, .035); }
+    .metric { min-width: 0; padding: 16px; border-radius: 18px; }
+    .metric-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .metric-label b { font-size: 17px; color: var(--purple); }
+    .metric.done .metric-label b { color: var(--green); }
+    .metric strong { display: block; margin-top: 7px; font-size: 28px; line-height: 1.25; }
+    .metric small { display: block; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+    .section-head { margin: 26px 0 9px; display: flex; align-items: center; justify-content: space-between; }
+    .section-head h3 { margin: 0; font-size: 17px; }
+    .link { padding: 6px 2px; border: 0; color: var(--purple); background: transparent; font-weight: 700; }
+    .filters { display: flex; gap: 8px; margin-bottom: 12px; }
+    .filter { padding: 7px 12px; border: 1px solid var(--line); border-radius: 20px; color: var(--muted); background: var(--surface); }
+    .filter.active { color: var(--purple-ink); border-color: #cfc3fb; background: var(--purple-soft); font-weight: 800; }
+    .tasks { display: grid; gap: 10px; }
+    .task { display: flex; align-items: center; padding: 14px; border-radius: 18px; transition: transform .18s, opacity .18s; }
+    .task:hover { transform: translateY(-1px); }
+    .check { width: 40px; height: 40px; flex: 0 0 auto; border: 0; color: var(--purple); background: transparent; font-size: 23px; }
+    .task-body { min-width: 0; flex: 1; padding-left: 7px; }
+    .task-title { margin: 0; overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .task-note { margin: 3px 0 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .task-meta { margin-top: 8px; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+    .tag { padding: 3px 9px; border-radius: 20px; color: #00382f; background: var(--green-soft); font-weight: 700; }
+    .task.overdue .due { color: var(--red); }
+    .chevron { color: #aaa1af; font-size: 20px; }
+    .note-icon { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px; color: var(--purple); background: var(--purple-soft); font-size: 18px; }
+    .task.completed { opacity: .54; }
+    .task.completed .task-title { text-decoration: line-through; }
+    .toast { position: absolute; right: 18px; bottom: 88px; left: 18px; z-index: 4; padding: 12px 15px; border-radius: 12px; color: #fff; background: #282332; opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 520px) {
+      .stage { padding: 0; }
+      .phone { width: 100%; height: 100vh; min-height: 600px; border: 0; border-radius: 0; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #eee9f2;
+        --muted: #c8c0cf;
+        --canvas: #141318;
+        --surface: #29242e;
+        --line: #4b4554;
+        --purple-soft: #422a78;
+        --purple-ink: #eee6ff;
+        --green-soft: #154f45;
+      }
+      body { background: #0d0c10; }
+      .phone { border-color: #34303a; }
+      .focus {
+        color: var(--purple-ink);
+        border: 1px solid transparent;
+        background: linear-gradient(#35265b, #35265b) padding-box, linear-gradient(125deg, rgba(112,72,240,.86), rgba(178,58,232,.7), rgba(240,81,142,.48)) border-box;
+      }
+      .date-line, .focus p { color: rgba(238,230,255,.72); }
+      .secondary { color: #d8ccff; background: #292333; }
+      .card {
+        border: 1px solid transparent;
+        background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(125deg, rgba(112,72,240,.55), rgba(178,58,232,.4), rgba(240,81,142,.28)) border-box;
+        box-shadow: 0 5px 18px rgba(0,0,0,.16);
+      }
+      .filter { color: var(--muted); background: #25212a; }
+      .filter.active { color: #eee6ff; border-color: #755cba; background: #382b55; }
+      .tag { color: #a8e9da; background: var(--green-soft); }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <section class="phone" aria-label="工作台移动端原型">
+      <div class="screen">
+        <div class="status"><span>09:41</span><span>▮ ◉ ▰</span></div>
+        <header class="topbar">
+          <div><h1>工作台</h1><p>聚焦今天，整理下一步</p></div>
+          <div class="top-actions"><button class="icon-button" data-action="search" aria-label="搜索">⌕</button><button class="icon-button" data-action="menu" aria-label="导航">☰</button></div>
+        </header>
+        <main>
+          <section class="focus">
+            <div class="date-line"><span class="date-icon">▣</span><span>9月8日 星期二</span><time>14:26</time></div>
+            <h2>下午好，继续推进今天的计划</h2>
+            <p>4 项待处理，其中 2 项计划今天完成。</p>
+            <div class="quick-actions"><button class="primary" data-action="new">＋ 新建任务</button><button class="secondary" data-action="new-note">▤ 新建笔记</button></div>
+          </section>
+          <section class="metrics">
+            <article class="metric card"><div class="metric-label"><b>✓</b>待处理</div><strong>4</strong><small>2 项今天到期</small></article>
+            <article class="metric card done"><div class="metric-label"><b>●</b>已完成</div><strong id="done-count">7</strong><small>1 项已逾期</small></article>
+          </section>
+          <div class="section-head"><h3>待处理任务</h3><button class="link" data-action="all">查看全部 ›</button></div>
+          <div class="filters"><button class="filter active" data-filter="all">✓ 全部</button><button class="filter" data-filter="today">今天</button><button class="filter" data-filter="overdue">已逾期</button></div>
+          <section class="tasks">
+            <article class="task card" data-kind="today"><button class="check" aria-label="完成任务">○</button><div class="task-body"><p class="task-title">整理登录流程</p><p class="task-note">核对异常状态和恢复路径</p><div class="task-meta"><span class="tag">本地任务</span><span class="due">今天 18:00</span></div></div><span class="chevron">›</span></article>
+            <article class="task card overdue" data-kind="overdue"><button class="check" aria-label="完成任务">○</button><div class="task-body"><p class="task-title">补充同步冲突说明</p><p class="task-note">完善 README 中的操作步骤</p><div class="task-meta"><span class="tag">本地任务</span><span class="due">昨天 20:00</span></div></div><span class="chevron">›</span></article>
+            <article class="task card" data-kind="today"><button class="check" aria-label="完成任务">○</button><div class="task-body"><p class="task-title">检查任务导入格式</p><p class="task-note">覆盖空标题和日期解析</p><div class="task-meta"><span class="tag">本地任务</span><span class="due">今天 21:30</span></div></div><span class="chevron">›</span></article>
+            <article class="task card" data-kind="later"><button class="check" aria-label="完成任务">○</button><div class="task-body"><p class="task-title">更新应用截图</p><div class="task-meta"><span class="tag">本地任务</span><span class="due">9/11 12:00</span></div></div><span class="chevron">›</span></article>
+          </section>
+          <div class="section-head"><h3>最近更新笔记</h3><button class="link" data-action="notes">查看全部 ›</button></div>
+          <section class="tasks">
+            <article class="task card" data-note><span class="note-icon">▤</span><div class="task-body"><p class="task-title">同步冲突处理记录</p><p class="task-note">xstar-note · docs</p><div class="task-meta"><span class="due">今天 14:20 更新</span></div></div><span class="chevron">›</span></article>
+            <article class="task card" data-note><span class="note-icon">▤</span><div class="task-body"><p class="task-title">XStar 笔记功能说明</p><p class="task-note">xstar-note</p><div class="task-meta"><span class="due">昨天更新</span></div></div><span class="chevron">›</span></article>
+          </section>
+        </main>
+      </div>
+      <div class="toast" role="status"></div>
+    </section>
+  </div>
+  <script>
+    const phone = document.querySelector('.phone');
+    const toast = document.querySelector('.toast');
+    const notify = (text) => {
+      toast.textContent = text;
+      toast.classList.add('show');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+    };
+    document.querySelectorAll('[data-action="new"]').forEach((button) => button.addEventListener('click', () => notify('打开新建任务')));
+    document.querySelector('[data-action="new-note"]').addEventListener('click', () => notify('选择仓库和标题，创建并编辑笔记'));
+    document.querySelector('[data-action="notes"]').addEventListener('click', () => notify('打开仓库管理'));
+    document.querySelector('[data-action="search"]').addEventListener('click', () => notify('打开统一搜索'));
+    document.querySelector('[data-action="menu"]').addEventListener('click', () => notify('打开导航：工作台 / 仓库管理 / TODO / 搜索 / 设置'));
+    document.querySelector('[data-action="all"]').addEventListener('click', () => notify('打开全部 TODO'));
+    document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('.filter').forEach((item) => item.classList.remove('active'));
+      button.classList.add('active');
+      const filter = button.dataset.filter;
+      document.querySelectorAll('.task').forEach((task) => {
+        task.hidden = filter !== 'all' && task.dataset.kind !== filter;
+      });
+    }));
+    document.querySelectorAll('.check').forEach((button) => button.addEventListener('click', () => {
+      const task = button.closest('.task');
+      task.classList.toggle('completed');
+      button.textContent = task.classList.contains('completed') ? '●' : '○';
+    }));
+  </script>
+</body>
+</html>

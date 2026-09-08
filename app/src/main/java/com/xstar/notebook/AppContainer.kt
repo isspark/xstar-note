@@ -18,4 +18,5 @@ class AppContainer(context: Context) {
     val repoRepository: RepoRepository = RepoRepository(database, gitClient, tokenStore)
     val todoHubRepository: TodoHubRepository = TodoHubRepository(database, gitClient)
     val settings: AppSettings = AppSettings(context)
+    val taskNotificationController = TaskNotificationController(context, settings, todoHubRepository)
 }

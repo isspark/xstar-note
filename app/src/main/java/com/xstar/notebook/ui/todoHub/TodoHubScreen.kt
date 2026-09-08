@@ -770,7 +770,7 @@ private fun ExportDialog(
         text = {
             Column {
                 if (repos.isEmpty()) {
-                    Text("还没有仓库，请先在仓库管理中添加。")
+                    Text("还没有仓库，请先在笔记管理中添加。")
                 } else {
                     RepoSelectList(repos, repoId) { repoId = it }
                     OutlinedTextField(
@@ -808,7 +808,7 @@ private fun ImportDialog(
         text = {
             Column {
                 if (repos.isEmpty()) {
-                    Text("还没有仓库，请先在仓库管理中添加。")
+                    Text("还没有仓库，请先在笔记管理中添加。")
                 } else {
                     RepoSelectList(repos, selectedRepoId, onSelectRepo)
                     Spacer(Modifier.height(8.dp))

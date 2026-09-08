@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">XStar 笔记</string>
+    <string name="todo_widget_description">在桌面查看、新增和完成待办事项</string>
 </resources>

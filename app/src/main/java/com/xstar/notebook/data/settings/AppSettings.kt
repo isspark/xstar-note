@@ -7,13 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-enum class HomeMode {
-    REPOSITORY,
-    TODO,
-    BOTH,
-    TODO_AND_REPOSITORY,
-}
-
 class AppSettings(context: Context) {
 
     private val sp = context.applicationContext.getSharedPreferences("xstar_settings", Context.MODE_PRIVATE)
@@ -29,12 +22,8 @@ class AppSettings(context: Context) {
     private val _defaultRepoId = MutableStateFlow(sp.getLong(KEY_DEFAULT_REPO, -1L))
     val defaultRepoId: StateFlow<Long> = _defaultRepoId.asStateFlow()
 
-    private val _homeMode = MutableStateFlow(
-        runCatching {
-            HomeMode.valueOf(sp.getString(KEY_HOME_MODE, HomeMode.REPOSITORY.name).orEmpty())
-        }.getOrDefault(HomeMode.REPOSITORY),
-    )
-    val homeMode: StateFlow<HomeMode> = _homeMode.asStateFlow()
+    private val _taskNotificationEnabled = MutableStateFlow(sp.getBoolean(KEY_TASK_NOTIFICATION, false))
+    val taskNotificationEnabled: StateFlow<Boolean> = _taskNotificationEnabled.asStateFlow()
 
     fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
@@ -56,15 +45,15 @@ class AppSettings(context: Context) {
         sp.edit().putLong(KEY_DEFAULT_REPO, -1L).apply()
     }
 
-    fun setHomeMode(mode: HomeMode) {
-        _homeMode.value = mode
-        sp.edit().putString(KEY_HOME_MODE, mode.name).apply()
+    fun setTaskNotificationEnabled(enabled: Boolean) {
+        _taskNotificationEnabled.value = enabled
+        sp.edit().putBoolean(KEY_TASK_NOTIFICATION, enabled).apply()
     }
 
     private companion object {
         const val KEY_THEME = "theme_mode"
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_DEFAULT_REPO = "default_repo_id"
-        const val KEY_HOME_MODE = "home_mode"
+        const val KEY_TASK_NOTIFICATION = "task_notification_enabled"
     }
 }
