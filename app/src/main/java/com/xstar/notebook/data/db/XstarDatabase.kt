@@ -8,12 +8,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xstar.notebook.data.db.dao.CategoryDao
 import com.xstar.notebook.data.db.dao.DocDao
+import com.xstar.notebook.data.db.dao.InboxDao
 import com.xstar.notebook.data.db.dao.RepoDao
 import com.xstar.notebook.data.db.dao.TodoDao
 import com.xstar.notebook.data.db.dao.TodoNodeDao
 import com.xstar.notebook.data.db.entity.CategoryEntity
 import com.xstar.notebook.data.db.entity.CategorySystemEntity
 import com.xstar.notebook.data.db.entity.DocEntity
+import com.xstar.notebook.data.db.entity.InboxItemEntity
 import com.xstar.notebook.data.db.entity.NodeCategoryEntity
 import com.xstar.notebook.data.db.entity.RepoEntity
 import com.xstar.notebook.data.db.entity.TodoEntity
@@ -28,8 +30,9 @@ import com.xstar.notebook.data.db.entity.TodoNodeEntity
         CategorySystemEntity::class,
         CategoryEntity::class,
         NodeCategoryEntity::class,
+        InboxItemEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class XstarDatabase : RoomDatabase() {
@@ -38,6 +41,7 @@ abstract class XstarDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
     abstract fun todoNodeDao(): TodoNodeDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun inboxDao(): InboxDao
 
     companion object {
         @Volatile private var instance: XstarDatabase? = null
@@ -243,6 +247,29 @@ abstract class XstarDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `inbox_items` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `url` TEXT,
+                        `status` TEXT NOT NULL,
+                        `targetType` TEXT,
+                        `targetId` INTEGER,
+                        `targetPath` TEXT,
+                        `source` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
         private fun hex(v: Long): String = "0x" + java.lang.Long.toHexString(v)
 
         /** 全新安装时预置内置分类系统（建库后、首次可用前执行）。 */
@@ -264,6 +291,7 @@ abstract class XstarDatabase : RoomDatabase() {
                     MIGRATION_3_4,
                     MIGRATION_4_5,
                     MIGRATION_5_6,
+                    MIGRATION_6_7,
                 )
                     .addCallback(BUILTIN_SEED)
                     .build().also { instance = it }

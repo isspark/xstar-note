@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -65,6 +66,8 @@ import com.xstar.notebook.ui.components.FileTypes
 import com.xstar.notebook.ui.drawioView.DrawioScreen
 import com.xstar.notebook.ui.workspace.WorkspaceScreen
 import com.xstar.notebook.ui.mdView.MdViewScreen
+import com.xstar.notebook.ui.inbox.InboxEditorScreen
+import com.xstar.notebook.ui.inbox.InboxScreen
 import com.xstar.notebook.ui.navigation.Routes
 import com.xstar.notebook.ui.repoList.RepoListScreen
 import com.xstar.notebook.ui.settings.SettingsScreen
@@ -76,7 +79,7 @@ import com.xstar.notebook.ui.todoList.TodoListScreen
 import kotlinx.coroutines.launch
 
 @Composable
-fun MainScreen(createTodoSignal: Long = 0L) {
+fun MainScreen(createTodoSignal: Long = 0L, inboxSignal: Long = 0L) {
     val container = appContainer()
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -87,6 +90,12 @@ fun MainScreen(createTodoSignal: Long = 0L) {
 
     LaunchedEffect(createTodoSignal) {
         if (createTodoSignal > 0L) nav.navigate(Routes.todoEditor())
+    }
+
+    LaunchedEffect(inboxSignal) {
+        if (inboxSignal > 0L) {
+            nav.navigate(Routes.INBOX) { launchSingleTop = true }
+        }
     }
 
     fun openDrawer() {
@@ -156,6 +165,10 @@ fun MainScreen(createTodoSignal: Long = 0L) {
                         popUpTo(Routes.REPOS) { inclusive = false }
                         launchSingleTop = true
                     }
+                },
+                onInbox = {
+                    closeDrawer()
+                    nav.navigate(Routes.INBOX) { launchSingleTop = true }
                 },
                 onSettings = {
                     closeDrawer()
@@ -302,6 +315,22 @@ fun MainScreen(createTodoSignal: Long = 0L) {
                     onEditTodo = { id -> nav.navigate(Routes.todoEditor(id)) },
                 )
             }
+            composable(Routes.INBOX) {
+                InboxScreen(
+                    onOpenDrawer = ::openDrawer,
+                    onCreate = { nav.navigate(Routes.inboxEditor()) },
+                    onEdit = { id -> nav.navigate(Routes.inboxEditor(id)) },
+                )
+            }
+            composable(
+                Routes.INBOX_EDITOR,
+                arguments = listOf(navArgument("itemId") { type = NavType.LongType }),
+            ) { entry ->
+                InboxEditorScreen(
+                    itemId = entry.arguments?.getLong("itemId") ?: 0L,
+                    onBack = { nav.popBackStack() },
+                )
+            }
             composable(Routes.TODO_CLASSIFY) {
                 TodoClassifyScreen(onBack = { nav.popBackStack() })
             }
@@ -373,6 +402,7 @@ private fun AppDrawerContent(
     onOpenHome: () -> Unit,
     onManage: () -> Unit,
     onTodoHub: () -> Unit,
+    onInbox: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val config = LocalConfiguration.current
@@ -414,6 +444,11 @@ private fun AppDrawerContent(
                     icon = Icons.Rounded.Bookmarks,
                     label = "笔记管理",
                     onClick = onManage,
+                )
+                NavItem(
+                    icon = Icons.Rounded.Inbox,
+                    label = "Inbox",
+                    onClick = onInbox,
                 )
                 NavItem(
                     icon = Icons.Rounded.Checklist,

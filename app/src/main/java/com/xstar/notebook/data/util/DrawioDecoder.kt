@@ -4,6 +4,8 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 /**
  * 解析 .drawio 文件内容：
@@ -20,8 +22,9 @@ object DrawioDecoder {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) error("文件为空")
         // 场景1：整个文件就是一段 base64（无任何 XML 标签）
-        if (!trimmed.contains('<') && isLikelyBase64(trimmed)) {
-            val xml = inflateBase64(trimmed) ?: error("无法解码压缩内容（可能被多次编码或格式特殊）")
+        if (!trimmed.contains('<')) {
+            val xml = decodeCompressed(trimmed)
+                ?: error("无法解码压缩内容（可能被多次编码或格式特殊）")
             return ensureGraph(xml)
         }
         // 场景2：xml 包裹，逐个 diagram 内容尝试解码
@@ -33,9 +36,8 @@ object DrawioDecoder {
             val unescaped = unescapeXml(body)
             if (unescaped.contains("<mxGraphModel")) return ensureGraph(unescaped)
             // 内容为 base64(deflate(xml))
-            if (isLikelyBase64(body)) {
-                val xml = inflateBase64(body)
-                if (xml != null && xml.contains("<mxGraphModel")) return ensureGraph(xml)
+            decodeCompressed(body)?.let { xml ->
+                if (xml.contains("<mxGraphModel")) return ensureGraph(xml)
             }
         }
         // 场景3：普通可读 XML
@@ -61,9 +63,28 @@ object DrawioDecoder {
         return String(inflated, Charsets.UTF_8)
     }
 
+    /** Drawio 常见格式是 raw-deflate -> base64 -> encodeURIComponent。 */
+    private fun decodeCompressed(value: String): String? {
+        val candidates = LinkedHashSet<String>()
+        val raw = unescapeXml(value).trim()
+        candidates.add(raw)
+        if (raw.contains('%')) {
+            runCatching { URLDecoder.decode(raw, StandardCharsets.UTF_8.name()) }
+                .onSuccess { candidates.add(it) }
+        }
+        for (candidate in candidates) {
+            if (!isLikelyBase64(candidate)) continue
+            inflateBase64(candidate)?.let { xml ->
+                if (xml.contains("<mxGraphModel")) return xml
+            }
+        }
+        return null
+    }
+
     private fun decodeBase64(s: String): ByteArray? {
-        if (s.length % 4 != 0) return null
-        val standard = s.replace('-', '+').replace('_', '/')
+        val compact = s.replace(Regex("\\s"), "")
+        val standard = compact.replace('-', '+').replace('_', '/')
+            .let { it + "=".repeat((4 - it.length % 4) % 4) }
         return runCatching { android.util.Base64.decode(standard, android.util.Base64.DEFAULT) }.getOrNull()
     }
 
@@ -100,8 +121,9 @@ object DrawioDecoder {
     }
 
     private fun isLikelyBase64(s: String): Boolean {
-        if (s.length < 16) return false
-        return s.all { c ->
+        val compact = s.replace(Regex("\\s"), "")
+        if (compact.length < 16) return false
+        return compact.all { c ->
             c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' ||
                 c == '+' || c == '/' || c == '=' || c == '-' || c == '_'
         }

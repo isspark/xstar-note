@@ -14,6 +14,8 @@ object Routes {
     const val TODO_EDITOR = "todos/edit/{todoId}"
     const val SETTINGS = "settings"
     const val SEARCH = "search"
+    const val INBOX = "inbox"
+    const val INBOX_EDITOR = "inbox/edit/{itemId}"
     const val CONFLICTS = "conflicts/{repoId}"
     const val MERMAID = "mermaid/{repoId}/{relPath}/{blockIndex}"
 
@@ -24,6 +26,7 @@ object Routes {
     fun todoEditor(todoId: Long = 0L) = "todos/edit/$todoId"
     fun drawio(repoId: Long, relPath: String) = "drawio/$repoId/${encode(relPath)}"
     fun conflicts(repoId: Long) = "conflicts/$repoId"
+    fun inboxEditor(itemId: Long = 0L) = "inbox/edit/$itemId"
     fun mermaid(repoId: Long, relPath: String, blockIndex: Int) =
         "mermaid/$repoId/${encode(relPath)}/$blockIndex"
 

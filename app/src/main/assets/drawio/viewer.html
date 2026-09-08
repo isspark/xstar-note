@@ -4,17 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html, body { margin:0; padding:0; background:#ffffff; }
-  #wrap { width:100%; min-height:100vh; }
-  svg { display:block; width:100%; height:auto; background:#ffffff; }
+  html, body { margin:0; padding:0; width:100%; height:100%; background:#ffffff; }
+  #wrap { width:100%; height:100%; min-height:240px; position:relative; overflow:hidden; touch-action:none; }
+  svg { display:block; width:100%; height:100%; min-height:240px; background:#ffffff; user-select:none; }
+  #tools { position:absolute; top:12px; right:12px; z-index:2; display:flex; gap:6px; }
+  #tools button { width:40px; height:36px; border:1px solid #bbb; border-radius:6px; background:#fff; color:#333; font-size:20px; }
   text { font-family: Arial, "Microsoft YaHei", sans-serif; }
   #err { padding:24px; font-family:monospace; color:#b00020; white-space:pre-wrap; word-break:break-all; }
 </style>
 </head>
 <body>
-<div id="wrap"></div>
+<div id="wrap"><div id="loading">正在加载 Drawio 预览...</div></div>
 <script>
-  window.raw = (typeof DRAWIO_XML !== "undefined") ? DRAWIO_XML : null;
+  window.raw = null;
   window.basePath = window.basePath || "";
 
   function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -30,11 +32,37 @@
       if(i>0){ s[kv.substring(0,i)]=kv.substring(i+1); } });
     return s;
   }
+  function colorOf(value, fallback){
+    if(!value || value === "none" || value === "transparent") return value || fallback;
+    return value.charAt(0) === "#" ? value : "#" + value;
+  }
+  function cellValue(cell){
+    var value = cell.getAttribute("value");
+    if(value !== null) return value;
+    return cell.firstChild ? cell.firstChild.nodeValue : "";
+  }
+  function isTextCell(cell, style){
+    return style.text === "1" || style.shape === "label" ||
+      (!style.shape && style.fillColor === "none" && style.strokeColor === "none");
+  }
+  function pointOf(point){
+    if(!point) return null;
+    var px=parseFloat(point.getAttribute("x")), py=parseFloat(point.getAttribute("y"));
+    return isFinite(px) && isFinite(py) ? [px,py] : null;
+  }
+  function centerOf(cell){
+    if(!cell) return null;
+    var g=cell.getElementsByTagName("mxGeometry")[0];
+    if(!g) return null;
+    var x=parseFloat(g.getAttribute("x"))||0, y=parseFloat(g.getAttribute("y"))||0;
+    var w=parseFloat(g.getAttribute("width"))||0, h=parseFloat(g.getAttribute("height"))||0;
+    return [x+w/2,y+h/2];
+  }
 
   function render(){
     var wrap = document.getElementById("wrap");
     var raw = window.raw;
-    if(!raw){ wrap.innerHTML=""; return; }
+     if(!raw){ wrap.innerHTML="<div id='err'>未收到 Drawio 文件内容。</div>"; return; }
     var doc;
     try { doc = new DOMParser().parseFromString(raw, "text/xml"); }
     catch(e){ wrap.innerHTML="<div id='err'>无法解析 drawio 文件："+esc(e.message)+"</div>"; return; }
@@ -48,7 +76,7 @@
     var map = {};
     for(var i=0;i<cells.length;i++){ map[cells[i].getAttribute("id")] = cells[i]; }
 
-    var rects = [], edges = [];
+     var rects = [], texts = [], edges = [];
     for(var k in map){
       var c = map[k];
       var isV = c.getAttribute("vertex") === "1";
@@ -58,35 +86,56 @@
         if(!g) continue;
         var x=parseFloat(g.getAttribute("x"))||0, y=parseFloat(g.getAttribute("y"))||0;
         var w=parseFloat(g.getAttribute("width"))||0, h=parseFloat(g.getAttribute("height"))||0;
-        if(isE){
-          var pts=[];
-          var po=g.getElementsByTagName("mxPoint");
-          // 相对路径点
-          var points=g.getAttribute("points");
-          if(points){
-            points.split(";").forEach(function(p){ var xy=p.split(","); pts.push([+xy[0]+x,+xy[1]+y]); });
-          }
-          var sg=g.getElementsByTagName("mxPoint")[0];
-          edges.push({c:c, x:x,y:y,w:w,h:h, pts:pts, src:g.getAttribute("source"), tgt:g.getAttribute("target")});
-        } else {
-          rects.push({c:c,x:x,y:y,w:w,h:h});
+         if(isE){
+           var sourcePoint=null, targetPoint=null, middle=[];
+           var po=g.getElementsByTagName("mxPoint");
+           for(var pi=0;pi<po.length;pi++){
+             var point=pointOf(po[pi]), kind=po[pi].getAttribute("as");
+             if(!point) continue;
+             if(kind === "sourcePoint") sourcePoint=point;
+             else if(kind === "targetPoint") targetPoint=point;
+             else middle.push(point);
+           }
+           var pointsAttr=g.getAttribute("points");
+           if(pointsAttr){
+             middle=[];
+             pointsAttr.split(";").forEach(function(p){
+               var xy=p.split(","), px=parseFloat(xy[0]), py=parseFloat(xy[1]);
+               if(isFinite(px) && isFinite(py)) middle.push([px+x,py+y]);
+             });
+           }
+           var src=c.getAttribute("source"), tgt=c.getAttribute("target");
+           edges.push({c:c, x:x,y:y,w:w,h:h, sourcePoint:sourcePoint, targetPoint:targetPoint,
+             middle:middle, src:src, tgt:tgt});
+         } else {
+           var style=styleOf(c);
+           if(isTextCell(c, style)) texts.push({c:c,x:x,y:y,w:w,h:h});
+           else rects.push({c:c,x:x,y:y,w:w,h:h});
         }
       }
     }
 
     var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    rects.forEach(function(r){ minX=Math.min(minX,r.x); minY=Math.min(minY,r.y); maxX=Math.max(maxX,r.x+r.w); maxY=Math.max(maxY,r.y+r.h); });
-    edges.forEach(function(e){ e.pts.forEach(function(p){ minX=Math.min(minX,p[0]); minY=Math.min(minY,p[1]); maxX=Math.max(maxX,p[0]); maxY=Math.max(maxY,p[1]); }); });
+     rects.concat(texts).forEach(function(r){ minX=Math.min(minX,r.x); minY=Math.min(minY,r.y); maxX=Math.max(maxX,r.x+r.w); maxY=Math.max(maxY,r.y+r.h); });
+     edges.forEach(function(e){ edgePoints(e).forEach(function(p){
+       if(isFinite(p[0]) && isFinite(p[1])){
+         minX=Math.min(minX,p[0]); minY=Math.min(minY,p[1]); maxX=Math.max(maxX,p[0]); maxY=Math.max(maxY,p[1]);
+       }
+     }); });
     if(!isFinite(minX)){ minX=0;minY=0;maxX=100;maxY=100; }
 
     var pad=20;
     var svgNS="http://www.w3.org/2000/svg";
-    var svg=document.createElementNS(svgNS,"svg");
-    svg.setAttribute("viewBox",(minX-pad)+" "+(minY-pad)+" "+(maxX-minX+pad*2)+" "+(maxY-minY+pad*2));
+     var svg=document.createElementNS(svgNS,"svg");
+     var viewWidth=Math.max(1,maxX-minX+pad*2), viewHeight=Math.max(1,maxY-minY+pad*2);
+     svg.setAttribute("viewBox",(minX-pad)+" "+(minY-pad)+" "+viewWidth+" "+viewHeight);
+     svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+     var layer=document.createElementNS(svgNS,"g");
+     svg.appendChild(layer);
     function nodeRect(r){
       var st=styleOf(r.c);
-      var fill=st.fillColor?("#"+st.fillColor):"#ffffff";
-      var stroke=st.strokeColor?("#"+st.strokeColor):"#000000";
+       var fill=colorOf(st.fillColor,"#ffffff");
+       var stroke=colorOf(st.strokeColor,"#000000");
       var strokeW=parseFloat(st.strokeWidth)||1;
       var rounded=st.rounded==="1";
       var sh=st.shape;
@@ -96,55 +145,101 @@
       rect.setAttribute("x",r.x);rect.setAttribute("y",r.y);rect.setAttribute("width",r.w);rect.setAttribute("height",r.h);
       rect.setAttribute("rx",rx);rect.setAttribute("ry",ry);
       rect.setAttribute("fill",fill);rect.setAttribute("stroke",stroke);rect.setAttribute("stroke-width",strokeW);
-      svg.appendChild(rect);
-      var val=r.c.firstChild?r.c.firstChild.nodeValue:null;
+       layer.appendChild(rect);
+       var val=cellValue(r.c);
       var label=htmlToText(val);
       if(label){
         var t=document.createElementNS(svgNS,"text");
         t.setAttribute("x",r.x+r.w/2);t.setAttribute("y",r.y+r.h/2);
         t.setAttribute("text-anchor","middle");t.setAttribute("dominant-baseline","middle");
         t.setAttribute("font-size",(st.fontSize||12)+"px");
-        t.setAttribute("fill",st.fontColor?("#"+st.fontColor):"#000000");
+         t.setAttribute("fill",colorOf(st.fontColor,"#000000"));
         t.textContent=label;
-        svg.appendChild(t);
+         layer.appendChild(t);
       }
     }
-    function nodeEdge(e){
+     function nodeEdge(e){
       var st=styleOf(e.c);
-      var stroke=st.strokeColor?("#"+st.strokeColor):"#000000";
+       var stroke=colorOf(st.strokeColor,"#000000");
       var dash=e.c.getAttribute("style")&&(/dashed=1/.test(e.c.getAttribute("style")));
       var strokeW=parseFloat(st.strokeWidth)||1;
-      var p=[];
-      if(e.pts.length){ p=e.pts; }
-      else {
-        var s=map[e.src], t=map[e.tgt];
-        if(s&&t){
-          var sg=s.getElementsByTagName("mxGeometry")[0], tg=t.getElementsByTagName("mxGeometry")[0];
-          if(sg&&tg){ p.push([+sg.getAttribute("x")+ +sg.getAttribute("width")/2, +sg.getAttribute("y")+ +sg.getAttribute("height")/2]); p.push([+tg.getAttribute("x")+ +tg.getAttribute("width")/2, +tg.getAttribute("y")+ +tg.getAttribute("height")/2]); }
-        }
-      }
-      if(!p.length) return;
+       var p=edgePoints(e);
+       if(p.length < 2) return;
       var poly=document.createElementNS(svgNS,"polyline");
       poly.setAttribute("points", p.map(function(pt){return pt[0]+","+pt[1];}).join(" "));
       poly.setAttribute("fill","none");poly.setAttribute("stroke",stroke);poly.setAttribute("stroke-width",strokeW);
-      if(dash) poly.setAttribute("stroke-dasharray","6,4");
-      svg.appendChild(poly);
-      var val=e.c.firstChild?e.c.firstChild.nodeValue:null;
+       if(dash) poly.setAttribute("stroke-dasharray","6,4");
+       poly.setAttribute("stroke-linecap","round");
+       poly.setAttribute("stroke-linejoin","round");
+       layer.appendChild(poly);
+       if(st.endArrow && st.endArrow !== "none"){
+         var end=p[p.length-1], before=p[p.length-2];
+         var marker=document.createElementNS(svgNS,"polygon");
+         var angle=Math.atan2(end[1]-before[1],end[0]-before[0]), size=7;
+         marker.setAttribute("points",end[0]+","+end[1]+" "+(end[0]-size*Math.cos(angle-.5))+","+(end[1]-size*Math.sin(angle-.5))+" "+(end[0]-size*Math.cos(angle+.5))+","+(end[1]-size*Math.sin(angle+.5)));
+         marker.setAttribute("fill",stroke); layer.appendChild(marker);
+       }
+       var val=cellValue(e.c);
       var label=htmlToText(val);
       if(label){
         var mid=p[Math.floor(p.length/2)];
         var t=document.createElementNS(svgNS,"text");
         t.setAttribute("x",mid[0]);t.setAttribute("y",mid[1]-6);
         t.setAttribute("text-anchor","middle");t.setAttribute("font-size","11px");t.setAttribute("fill","#555");
-        t.textContent=label; svg.appendChild(t);
+         t.textContent=label; layer.appendChild(t);
       }
+     }
+      function edgePoints(e){
+       var start=e.sourcePoint || centerOf(map[e.src]);
+       var end=e.targetPoint || centerOf(map[e.tgt]);
+       var p=[];
+       if(start) p.push(start);
+       e.middle.forEach(function(point){ p.push(point); });
+        if(end) p.push(end);
+        return p;
+      }
+      edges.forEach(nodeEdge);
+     rects.forEach(nodeRect);
+     texts.forEach(function(r){
+       var st=styleOf(r.c), label=htmlToText(cellValue(r.c));
+       if(!label) return;
+       var t=document.createElementNS(svgNS,"text");
+       t.setAttribute("x",r.x+r.w/2); t.setAttribute("y",r.y+r.h/2);
+       t.setAttribute("text-anchor","middle"); t.setAttribute("dominant-baseline","middle");
+       t.setAttribute("font-size",(st.fontSize||12)+"px");
+       t.setAttribute("fill",colorOf(st.fontColor,"#000000")); t.textContent=label;
+       layer.appendChild(t);
+     });
+     wrap.innerHTML="";
+     var tools=document.createElement("div"); tools.id="tools";
+     tools.innerHTML="<button type='button' id='zoomOut'>−</button><button type='button' id='zoomIn'>+</button><button type='button' id='zoomReset'>↺</button>";
+     wrap.appendChild(tools);
+     wrap.appendChild(svg);
+     var scale=1, panX=0, panY=0, drag=null;
+     function apply(){ layer.setAttribute("transform","translate("+panX+" "+panY+") scale("+scale+")"); }
+     document.getElementById("zoomIn").onclick=function(){ scale=Math.min(5,scale*1.25); apply(); };
+     document.getElementById("zoomOut").onclick=function(){ scale=Math.max(.2,scale/1.25); apply(); };
+     document.getElementById("zoomReset").onclick=function(){ scale=1; panX=0; panY=0; apply(); };
+     svg.addEventListener("pointerdown",function(e){ drag={x:e.clientX,y:e.clientY,px:panX,py:panY}; svg.setPointerCapture(e.pointerId); });
+     svg.addEventListener("pointermove",function(e){ if(!drag) return; panX=drag.px+(e.clientX-drag.x)/scale; panY=drag.py+(e.clientY-drag.y)/scale; apply(); });
+     svg.addEventListener("pointerup",function(){ drag=null; });
+     svg.addEventListener("pointercancel",function(){ drag=null; });
+     apply();
+   }
+  window.renderViewer = function(){
+    try {
+      render();
+    } catch(e) {
+      var wrap = document.getElementById("wrap");
+      if(wrap) wrap.innerHTML = "<div id='err'>预览渲染失败：" + esc(String(e && e.message || e)) + "</div>";
+      if(window.console) console.error(e && e.stack || e);
     }
-    edges.forEach(nodeEdge);
-    rects.forEach(nodeRect);
-    wrap.innerHTML="";
-    wrap.appendChild(svg);
-  }
-  window.renderViewer = render;
+  };
+  window.onerror = function(message){
+    var wrap = document.getElementById("wrap");
+    if(wrap) wrap.innerHTML = "<div id='err'>预览脚本错误：" + esc(String(message)) + "</div>";
+    return true;
+  };
 
   // 导出为 PNG：把渲染出的 SVG 画到 canvas，交给 Android 桥分享/保存
   function toDataUrl(cb){
@@ -171,8 +266,6 @@
     if (!window.Android) return;
     toDataUrl(function(url){ if(url) window.Android.sharePng(url); });
   };
-  render();
-});
 </script>
 </body>
 </html>

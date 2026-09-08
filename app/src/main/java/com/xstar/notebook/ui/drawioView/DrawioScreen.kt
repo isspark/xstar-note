@@ -8,6 +8,8 @@ import android.widget.Toast
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -163,14 +165,22 @@ private fun DrawioWebView(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            val bridge = DrawioShareBridge(ctx, originalFile)
+            val bridge = DrawioShareBridge(ctx, originalFile, xml)
             WebView(ctx).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.allowFileAccess = true
+                setBackgroundColor(android.graphics.Color.WHITE)
                 addJavascriptInterface(bridge, "Android")
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                        Log.e("DrawioWebView", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                        return true
+                    }
+                }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
-                        injectXml(view, xml)
+                        view.postDelayed({ injectXml(view) }, 100)
                     }
                 }
                 loadUrl("file:///android_asset/drawio/viewer.html")
@@ -178,23 +188,28 @@ private fun DrawioWebView(
         },
         update = { view ->
             onWebView(view)
-            injectXml(view, xml)
+            view.post { injectXml(view) }
         },
     )
 }
 
-private fun injectXml(view: WebView, xml: String) {
-    val encoded = org.json.JSONObject.quote(xml)
+private fun injectXml(view: WebView) {
     view.evaluateJavascript(
-        "window.raw=$encoded; window.basePath=''; window.renderViewer();",
-        null,
+        "(function(){try{if(!window.Android||!window.Android.getXml){document.getElementById('wrap').innerHTML='<div id=\\\"err\\\">Android 数据接口未就绪。</div>';return;} window.raw=window.Android.getXml(); window.basePath=''; if(window.renderViewer) window.renderViewer(); else setTimeout(function(){window.raw=window.Android.getXml();window.renderViewer();},250);}catch(e){document.getElementById('wrap').innerHTML='<div id=\\\"err\\\">数据注入失败：'+String(e)+'</div>';}})();",
+        { result ->
+            Log.d("DrawioWebView", "inject result=$result")
+        },
     )
 }
 
 private class DrawioShareBridge(
     private val context: Context,
     private val originalFile: File,
+    private val xml: String,
 ) {
+    @JavascriptInterface
+    fun getXml(): String = xml
+
     @JavascriptInterface
     fun sharePng(dataUrl: String) {
         runCatching {
