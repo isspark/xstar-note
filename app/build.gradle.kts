@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.jgit)
     implementation(libs.markwon.core)
     implementation(libs.markwon.ext.tasklist)
+    implementation(libs.markwon.ext.tables)
     implementation(libs.markwon.image.coil)
     implementation(libs.coil)
     implementation(libs.coil.compose)

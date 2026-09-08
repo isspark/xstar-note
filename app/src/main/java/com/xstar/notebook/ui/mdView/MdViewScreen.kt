@@ -97,6 +97,7 @@ import io.noties.markwon.MarkwonConfiguration
 import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.LinkResolver
 import io.noties.markwon.ext.tasklist.TaskListPlugin
+import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.image.coil.CoilImagesPlugin
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -160,6 +161,7 @@ fun MdViewScreen(
     val markwon: Markwon = remember(context, markdownMode) {
         Markwon.builder(context)
             .usePlugin(TaskListPlugin.create(context))
+            .usePlugin(TablePlugin.create(context))
             .usePlugin(CoilImagesPlugin.create(context))
             .usePlugin(object : AbstractMarkwonPlugin() {
                 override fun configureConfiguration(builder: MarkwonConfiguration.Builder) {
