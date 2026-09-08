@@ -13,9 +13,13 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 
 class TodoWidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = TaskFactory(applicationContext)
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
+        TaskFactory(applicationContext, intent.getBooleanExtra(EXTRA_MINIMAL, false))
 
-    private class TaskFactory(private val context: Context) : RemoteViewsFactory {
+    private class TaskFactory(
+        private val context: Context,
+        private val minimal: Boolean,
+    ) : RemoteViewsFactory {
         private var tasks = emptyList<TodoNodeEntity>()
 
         override fun onCreate() = Unit
@@ -34,7 +38,10 @@ class TodoWidgetService : RemoteViewsService() {
 
         override fun getViewAt(position: Int): RemoteViews? {
             val task = tasks.getOrNull(position) ?: return null
-            return RemoteViews(context.packageName, R.layout.widget_todo_item).apply {
+            return RemoteViews(
+                context.packageName,
+                if (minimal) R.layout.widget_todo_minimal_item else R.layout.widget_todo_item,
+            ).apply {
                 setTextViewText(R.id.widget_task_check, if (task.done) "✓" else "○")
                 setTextViewText(R.id.widget_task_title, task.title)
                 setTextViewText(R.id.widget_task_due, task.dueAt?.let(::formatDue).orEmpty())
@@ -62,5 +69,9 @@ class TodoWidgetService : RemoteViewsService() {
                 time.format(DateTimeFormatter.ofPattern("M/d HH:mm"))
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_MINIMAL = "minimal"
     }
 }

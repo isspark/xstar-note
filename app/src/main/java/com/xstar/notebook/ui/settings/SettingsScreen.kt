@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xstar.notebook.data.settings.ThemeMode
+import com.xstar.notebook.MinimalTodoWidgetProvider
 import com.xstar.notebook.TodoWidgetProvider
 import com.xstar.notebook.ui.appContainer
 import com.xstar.notebook.ui.components.GradientTopBar
@@ -82,14 +83,15 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
         }
     }
 
-    fun pinTodoWidget() {
+    fun pinTodoWidget(minimal: Boolean) {
         val manager = AppWidgetManager.getInstance(context)
         if (!manager.isRequestPinAppWidgetSupported) return
-        val provider = ComponentName(context, TodoWidgetProvider::class.java)
+        val providerClass = if (minimal) MinimalTodoWidgetProvider::class.java else TodoWidgetProvider::class.java
+        val provider = ComponentName(context, providerClass)
         val successIntent = PendingIntent.getBroadcast(
             context,
-            50_001,
-            Intent(context, TodoWidgetProvider::class.java).apply {
+            if (minimal) 50_002 else 50_001,
+            Intent(context, providerClass).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -168,7 +170,7 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
             }
 
             Surface(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = ::pinTodoWidget),
+                modifier = Modifier.fillMaxWidth().clickable { pinTodoWidget(false) },
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
@@ -181,6 +183,27 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
                         Text("添加待办组件到桌面", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                         Text(
                             "在桌面新增、完成或恢复任务",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { pinTodoWidget(true) },
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
+                Row(
+                    Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Widgets, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                        Text("添加极简待办组件", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            "全透明背景，仅保留列表与淡色轮廓",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline,
                         )

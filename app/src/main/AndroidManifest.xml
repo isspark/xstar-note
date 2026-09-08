@@ -26,6 +26,7 @@
 
         <receiver
             android:name=".TodoWidgetProvider"
+            android:label="@string/todo_widget_name"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -33,6 +34,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/todo_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".MinimalTodoWidgetProvider"
+            android:label="@string/todo_widget_minimal_name"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/todo_widget_minimal_info" />
         </receiver>
 
         <service

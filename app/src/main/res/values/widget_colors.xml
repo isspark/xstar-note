@@ -6,4 +6,5 @@
     <color name="widget_text">#25212B</color>
     <color name="widget_muted">#746D7C</color>
     <color name="widget_accent">#6B4CE0</color>
+    <color name="widget_minimal_border">#33746D7C</color>
 </resources>

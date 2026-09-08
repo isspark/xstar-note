@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_minimal_background"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/widget_add"
+        android:layout_width="36dp"
+        android:layout_height="32dp"
+        android:layout_gravity="end"
+        android:contentDescription="新建任务"
+        android:gravity="center"
+        android:text="+"
+        android:textColor="@color/widget_text"
+        android:textSize="24sp" />
+
+    <ListView
+        android:id="@+id/widget_task_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="@color/widget_minimal_border"
+        android:dividerHeight="1dp"
+        android:scrollbars="none" />
+
+    <TextView
+        android:id="@+id/widget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:text="暂无待办"
+        android:textColor="@color/widget_muted"
+        android:textSize="13sp" />
+</LinearLayout>
