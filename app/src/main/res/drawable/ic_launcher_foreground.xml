@@ -4,32 +4,23 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <path
-        android:fillColor="#6B4CE0"
-        android:pathData="M0,0h108v108h-108z" />
-
     <group
         android:pivotX="54"
         android:pivotY="54"
         android:scaleX="0.72"
         android:scaleY="0.72">
-    <!-- A single sheet: notes without literal notebook detail. -->
     <path
         android:fillColor="#FAF8FF"
         android:pathData="M29,21H60L72,33V84C72,86.2 70.2,88 68,88H29C26.8,88 25,86.2 25,84V25C25,22.8 26.8,21 29,21Z" />
     <path
         android:fillColor="#DCD3F5"
         android:pathData="M60,21V33H72Z" />
-
-    <!-- Two glints: captured ideas. -->
     <path
         android:fillColor="#6B4CE0"
         android:pathData="M45,33L47.5,39.5L54,42L47.5,44.5L45,51L42.5,44.5L36,42L42.5,39.5Z" />
     <path
         android:fillColor="#F0518E"
         android:pathData="M59,49L60.5,53L64.5,54.5L60.5,56L59,60L57.5,56L53.5,54.5L57.5,53Z" />
-
-    <!-- One confident pencil stroke resting against the page. -->
     <path
         android:fillColor="#F0518E"
         android:pathData="M78,34L84,40L88,36C89.7,34.3 89.7,31.7 88,30C86.3,28.3 83.7,28.3 82,30Z" />
