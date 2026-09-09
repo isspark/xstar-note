@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { width:100%; min-height:100%; margin:0; padding:0; background:#fff; }
+    #status { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; color:#555; font:16px sans-serif; background:#fff; z-index:2; }
+    #diagram { width:100%; min-height:100vh; background:#fff; }
+  </style>
+</head>
+<body>
+  <div id="status">正在加载 diagrams.net 官方预览...</div>
+  <div id="diagram" class="mxgraph"></div>
+  <script>
+    function showError(message) {
+      var status = document.getElementById("status");
+      status.textContent = String(message);
+      status.style.color = "#b00020";
+    }
+    function prepareDiagram() {
+      if (!window.Android || !window.Android.getXml) {
+        showError("Android 数据接口未就绪");
+        return false;
+      }
+      var xml = window.Android.getXml();
+      if (!xml) {
+        showError("未读取到 Drawio XML");
+        return false;
+      }
+      var config = {
+        xml: xml,
+        toolbar: "pages zoom layers lightbox",
+        "toolbar-nohide": true,
+        "toolbar-position": "bottom",
+        "auto-fit": true,
+        "allow-zoom-in": true,
+        resize: true,
+        center: true,
+        editable: false,
+        lightbox: false,
+        nav: true,
+        border: 12
+      };
+      document.getElementById("diagram").setAttribute("data-mxgraph", JSON.stringify(config));
+      return true;
+    }
+    window.requestExport = function() {
+      showError("官方只读 Viewer 暂不支持从应用菜单导出 PNG，请分享源文件后使用 diagrams.net 导出。");
+    };
+    if (prepareDiagram()) {
+      var script = document.createElement("script");
+      script.src = "https://viewer.diagrams.net/js/viewer-static.min.js";
+      script.onload = function() {
+        try {
+          GraphViewer.processElements();
+          document.getElementById("status").style.display = "none";
+        } catch (e) {
+          showError("官方 Drawio 渲染失败：" + String(e));
+        }
+      };
+      script.onerror = function() {
+        showError("无法加载 diagrams.net 官方 Viewer，请检查网络连接。");
+      };
+      document.head.appendChild(script);
+    }
+  </script>
+</body>
+</html>

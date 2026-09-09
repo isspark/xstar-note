@@ -54,9 +54,21 @@
     if(!cell) return null;
     var g=cell.getElementsByTagName("mxGeometry")[0];
     if(!g) return null;
-    var x=parseFloat(g.getAttribute("x"))||0, y=parseFloat(g.getAttribute("y"))||0;
+    var origin=absoluteOrigin(cell), x=origin[0], y=origin[1];
     var w=parseFloat(g.getAttribute("width"))||0, h=parseFloat(g.getAttribute("height"))||0;
     return [x+w/2,y+h/2];
+  }
+  function absoluteOrigin(cell){
+    var x=0, y=0, current=cell, seen={};
+    while(current && !seen[current.getAttribute("id")]){
+      var id=current.getAttribute("id"); seen[id]=true;
+      var g=current.getElementsByTagName("mxGeometry")[0];
+      if(g){ x+=(parseFloat(g.getAttribute("x"))||0); y+=(parseFloat(g.getAttribute("y"))||0); }
+      var parent=current.getAttribute("parent");
+      current=map[parent];
+      if(!current || parent==="1") break;
+    }
+    return [x,y];
   }
 
   function render(){
@@ -84,7 +96,7 @@
       if(isE || isV){
         var g = c.getElementsByTagName("mxGeometry")[0];
         if(!g) continue;
-        var x=parseFloat(g.getAttribute("x"))||0, y=parseFloat(g.getAttribute("y"))||0;
+         var origin=absoluteOrigin(c), x=origin[0], y=origin[1];
         var w=parseFloat(g.getAttribute("width"))||0, h=parseFloat(g.getAttribute("height"))||0;
          if(isE){
            var sourcePoint=null, targetPoint=null, middle=[];

@@ -20,6 +20,8 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.ZoomIn
+import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.compose.BackHandler
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xstar.notebook.ui.components.FilledActionButton
@@ -65,12 +68,15 @@ fun DrawioScreen(
     val webRef = remember { mutableStateOf<WebView?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
 
+    // Drawio uses horizontal pan gestures, so system back gestures are disabled on this screen.
+    BackHandler(enabled = true) { }
+
     fun shareOriginal() {
         runCatching { shareFile(context, originalFile, "application/octet-stream") }
     }
 
     fun exportPng() {
-        webRef.value?.evaluateJavascript("window.exportPng && window.exportPng();", null)
+        webRef.value?.evaluateJavascript("window.requestExport && window.requestExport();", null)
     }
 
     Scaffold(
@@ -81,6 +87,12 @@ fun DrawioScreen(
                 subtitle = "drawio 图表预览",
                 onBack = onBack,
                 actions = {
+                    IconButton(onClick = { webRef.value?.zoomOut() }) {
+                        Icon(Icons.Rounded.ZoomOut, contentDescription = "缩小", tint = androidx.compose.ui.graphics.Color.White)
+                    }
+                    IconButton(onClick = { webRef.value?.zoomIn() }) {
+                        Icon(Icons.Rounded.ZoomIn, contentDescription = "放大", tint = androidx.compose.ui.graphics.Color.White)
+                    }
                     Box {
                         IconButton(onClick = { menuOpen = true }) {
                             Icon(Icons.Rounded.MoreVert, contentDescription = "更多操作", tint = androidx.compose.ui.graphics.Color.White)
@@ -170,7 +182,17 @@ private fun DrawioWebView(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = true
+                settings.setSupportZoom(true)
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+                settings.useWideViewPort = true
+                settings.loadWithOverviewMode = true
                 setBackgroundColor(android.graphics.Color.WHITE)
+                overScrollMode = WebView.OVER_SCROLL_NEVER
+                setOnTouchListener { view, _ ->
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                    false
+                }
                 addJavascriptInterface(bridge, "Android")
                 webChromeClient = object : WebChromeClient() {
                     override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
@@ -179,25 +201,13 @@ private fun DrawioWebView(
                     }
                 }
                 webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        view.postDelayed({ injectXml(view) }, 100)
-                    }
+                    override fun onPageFinished(view: WebView, url: String?) = Unit
                 }
-                loadUrl("file:///android_asset/drawio/viewer.html")
+                loadUrl("file:///android_asset/drawio/official.html")
             }.also { onWebView(it) }
         },
         update = { view ->
             onWebView(view)
-            view.post { injectXml(view) }
-        },
-    )
-}
-
-private fun injectXml(view: WebView) {
-    view.evaluateJavascript(
-        "(function(){try{if(!window.Android||!window.Android.getXml){document.getElementById('wrap').innerHTML='<div id=\\\"err\\\">Android 数据接口未就绪。</div>';return;} window.raw=window.Android.getXml(); window.basePath=''; if(window.renderViewer) window.renderViewer(); else setTimeout(function(){window.raw=window.Android.getXml();window.renderViewer();},250);}catch(e){document.getElementById('wrap').innerHTML='<div id=\\\"err\\\">数据注入失败：'+String(e)+'</div>';}})();",
-        { result ->
-            Log.d("DrawioWebView", "inject result=$result")
         },
     )
 }

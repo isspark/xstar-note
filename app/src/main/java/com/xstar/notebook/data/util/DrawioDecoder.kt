@@ -60,7 +60,9 @@ object DrawioDecoder {
         val bytes = decodeBase64(s) ?: return null
         val inflated = inflate(bytes) ?: return null
         if (inflated.size > MAX_INFLATED) return null
-        return String(inflated, Charsets.UTF_8)
+        val decoded = String(inflated, Charsets.UTF_8)
+        // draw.io compresses encodeURIComponent(xml), not the XML bytes directly.
+        return percentDecode(decoded) ?: decoded
     }
 
     /** Drawio 常见格式是 raw-deflate -> base64 -> encodeURIComponent。 */
@@ -80,6 +82,11 @@ object DrawioDecoder {
         }
         return null
     }
+
+    private fun percentDecode(value: String): String? = runCatching {
+        // URLDecoder treats '+' as a space, while encodeURIComponent does not.
+        URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+    }.getOrNull()
 
     private fun decodeBase64(s: String): ByteArray? {
         val compact = s.replace(Regex("\\s"), "")

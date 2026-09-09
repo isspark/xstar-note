@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.xstar.notebook.data.git.GitClient
 import com.xstar.notebook.data.git.GitOperationException
 import com.xstar.notebook.data.repo.RepoRepository
-import com.xstar.notebook.data.util.DrawioDecoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,7 +51,8 @@ class DrawioViewModel(
         if (file.length() > 5 * 1024 * 1024) {
             throw GitOperationException("文件超过 5MB，离线预览过于吃力，可先“用文本方式查看”或分享原文件")
         }
-        val raw = file.readBytes().let { String(it, Charsets.UTF_8) }
-        return DrawioDecoder.decode(raw)
+        val raw = file.readBytes().let { String(it, Charsets.UTF_8) }.trim()
+        if (raw.isEmpty()) throw GitOperationException("文件为空")
+        return raw
     }
 }
